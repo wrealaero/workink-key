@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>completion verified</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #0a0a0f;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(18, 18, 27, 0.85);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 48px;
+            max-width: 500px;
+            width: 100%;
+            border: 1px solid rgba(138, 43, 226, 0.2);
+            text-align: center;
+        }
+
+        .checkmark {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22c55e, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            margin-bottom: 32px;
+            text-transform: lowercase;
+        }
+
+        .code-box {
+            background: rgba(20, 20, 30, 0.8);
+            border: 2px solid rgba(34, 197, 94, 0.4);
+            border-radius: 12px;
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            margin: 24px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .code-box:hover {
+            border-color: #22c55e;
+            background: rgba(20, 20, 30, 0.95);
+            transform: translateY(-2px);
+        }
+
+        .code-box.copied {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .copy-hint {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 8px;
+            text-transform: lowercase;
+        }
+
+        .instructions {
+            background: rgba(30, 30, 45, 0.5);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+            text-align: left;
+        }
+
+        .instructions h3 {
+            color: #22c55e;
+            font-size: 14px;
+            margin-bottom: 12px;
+            text-transform: lowercase;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+            text-transform: lowercase;
+        }
+
+        .warning {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: lowercase;
+        }
+
+        .timer {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 16px;
+        }
+
+        .timer.warning {
+            color: #ef4444;
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+
+        .error-container {
+            text-align: center;
+        }
+
+        .error-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .error-title {
+            font-size: 28px;
+            color: #ef4444;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .error-text {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            text-transform: lowercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <!-- content will be injected by javascript -->
+    </div>
+
+    <script>
+        const USED_CODES_KEY = 'aerov4_used_codes';
+        const CODE_EXPIRY = 30 * 60 * 1000; 
+
+        function getUsedCodes() {
+            const data = localStorage.getItem(USED_CODES_KEY);
+            if (!data) return {};
+            
+            try {
+                const codes = JSON.parse(data);
+                const now = Date.now();
+                const cleaned = {};
+                for (let code in codes) {
+                    if (now - codes[code] < CODE_EXPIRY) {
+                        cleaned[code] = codes[code];
+                    }
+                }
+                localStorage.setItem(USED_CODES_KEY, JSON.stringify(cleaned));
+                return cleaned;
+            } catch {
+                return {};
+            }
+        }
+
+        function markCodeAsUsed(code) {
+            const usedCodes = getUsedCodes();
+            usedCodes[code] = Date.now();
+            localStorage.setItem(USED_CODES_KEY, JSON.stringify(usedCodes));
+        }
+
+        function isCodeUsed(code) {
+            const usedCodes = getUsedCodes();
+            return code in usedCodes;
+        }
+
+        function getCodeFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('code') || params.get('session');
+        }
+
+        function copyCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                const codeBox = document.querySelector('.code-box');
+                if (codeBox) {
+                    codeBox.classList.add('copied');
+                    const hint = codeBox.querySelector('.copy-hint');
+                    if (hint) {
+                        const originalText = hint.textContent;
+                        hint.textContent = 'copied! ✓';
+                        hint.style.color = '#22c55e';
+                        
+                        setTimeout(() => {
+                            hint.textContent = originalText;
+                            hint.style.color = '';
+                            codeBox.classList.remove('copied');
+                        }, 2000);
+                    }
+                }
+            }).catch(() => {
+                prompt('copy this code:', code);
+            });
+        }
+
+        function startTimer() {
+            const timerEl = document.getElementById('timer');
+            if (!timerEl) return;
+
+            const startTime = Date.now();
+            const duration = CODE_EXPIRY;
+
+            function updateTimer() {
+                const elapsed = Date.now() - startTime;
+                const remaining = duration - elapsed;
+
+                if (remaining <= 0) {
+                    timerEl.textContent = 'code expired';
+                    timerEl.classList.add('warning');
+                    return;
+                }
+
+                const minutes = Math.floor(remaining / 60000);
+                const seconds = Math.floor((remaining % 60000) / 1000);
+                
+                timerEl.textContent = `code expires in ${minutes}m ${seconds}s`;
+                
+                if (remaining < 5 * 60 * 1000) {
+                    timerEl.classList.add('warning');
+                }
+
+                setTimeout(updateTimer, 1000);
+            }
+
+            updateTimer();
+        }
+
+        function showError(title, message) {
+            document.getElementById('container').innerHTML = `
+                <div class="error-container">
+                    <div class="error-icon">❌</div>
+                    <div class="error-title">${title}</div>
+                    <div class="error-text">${message}</div>
+                </div>
+            `;
+        }
+
+        function showSuccess(code) {
+            document.getElementById('container').innerHTML = `
+                <div class="checkmark">✓</div>
+                <h1>work.ink completed!</h1>
+                <div class="subtitle">nice work bro, here's ur completion code</div>
+
+                <div class="code-box" onclick="copyCode('${code}')">
+                    ${code}
+                    <div class="copy-hint">click to copy</div>
+                </div>
+
+                <div class="instructions">
+                    <h3>⚠️ read this carefully:</h3>
+                    <ol>
+                        <li>copy the code above (click on it)</li>
+                        <li>go back to the aerov4 key site</li>
+                        <li>paste the code when it asks</li>
+                        <li>this code only works ONCE</li>
+                        <li>don't share it or refresh this page</li>
+                    </ol>
+                </div>
+
+                <div class="timer" id="timer"></div>
+
+                <div class="warning">
+                    ⚠️ this code expires in 30 minutes and can only be used once. don't refresh or u lose it.
+                </div>
+            `;
+
+            startTimer();
+
+            setTimeout(() => {
+                markCodeAsUsed(code);
+            }, 5000);
+        }
+
+        window.onload = () => {
+            const code = getCodeFromURL();
+
+            if (!code) {
+                showError(
+                    'no code found',
+                    'u didnt come from the right place. go back to the aerov4 site and start over.'
+                );
+                return;
+            }
+
+            if (code.length !== 8 || !/^[A-Z0-9]+$/.test(code)) {
+                showError(
+                    'invalid code',
+                    'the code looks wrong. go back to the aerov4 site and try again.'
+                );
+                return;
+            }
+
+            if (isCodeUsed(code)) {
+                showError(
+                    'code already used',
+                    'u already saw this code. it can only be used once. go back and get a new one.'
+                );
+                return;
+            }
+
+            showSuccess(code);
+        };
+    </script>
+</body>
+</html>
