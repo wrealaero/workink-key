@@ -64,7 +64,6 @@
             margin: 24px 0;
             cursor: pointer;
             transition: all 0.3s;
-            position: relative;
         }
         .code-box:hover {
             border-color: #22c55e;
@@ -142,6 +141,7 @@
             color: rgba(255, 255, 255, 0.6);
             font-size: 14px;
             text-transform: lowercase;
+            margin-bottom: 8px;
         }
     </style>
 </head>
@@ -149,6 +149,7 @@
     <div class="container" id="container"></div>
     <script>
         const USED_CODES_KEY = 'aerov4_used_codes';
+        const VERIFICATION_KEY = 'aerov4_verify';
         const CODE_EXPIRY = 30 * 60 * 1000;
 
         function getUsedCodes() {
@@ -182,27 +183,29 @@
             return code in usedCodes;
         }
 
-        function getCodeFromURL() {
-            const hash = window.location.hash.substring(1);
-            if (hash) return hash;
-            
+        function getVerifyTokenFromURL() {
             const params = new URLSearchParams(window.location.search);
-            return params.get('code') || params.get('session');
+            return params.get('verify');
         }
 
-        function getPendingCode() {
-            const data = localStorage.getItem('aerov4_pending_code');
+        function getVerificationData() {
+            const data = localStorage.getItem(VERIFICATION_KEY);
             if (!data) return null;
             
             try {
                 const parsed = JSON.parse(data);
                 const age = Date.now() - parsed.timestamp;
-                if (age < 5 * 60 * 1000) {
-                    return parsed.code;
+                if (age < 10 * 60 * 1000) {
+                    return parsed;
                 }
             } catch {}
             
             return null;
+        }
+
+        function checkReferrer() {
+            const referrer = document.referrer.toLowerCase();
+            return referrer.includes('work.ink') || referrer.includes('work-ink');
         }
 
         function copyCode(code) {
@@ -260,14 +263,20 @@
             updateTimer();
         }
 
-        function showError(title, message) {
-            document.getElementById('container').innerHTML = `
+        function showError(title, message, debugInfo) {
+            let html = `
                 <div class="error-container">
                     <div class="error-icon">❌</div>
                     <div class="error-title">${title}</div>
-                    <div class="error-text">${message}</div>
-                </div>
-            `;
+                    <div class="error-text">${message}</div>`;
+            
+            if (debugInfo) {
+                html += `<div class="error-text" style="margin-top: 12px; font-size: 11px; opacity: 0.5;">debug: ${debugInfo}</div>`;
+            }
+            
+            html += `</div>`;
+            
+            document.getElementById('container').innerHTML = html;
         }
 
         function showSuccess(code) {
@@ -303,28 +312,67 @@
         }
 
         window.onload = () => {
-            let code = getCodeFromURL();
-            
-            if (!code) {
-                code = getPendingCode();
-            }
+            const urlToken = getVerifyTokenFromURL();
+            const verifyData = getVerificationData();
+            const referrerValid = checkReferrer();
 
-            if (!code) {
-                showError('no code found', 'u didnt come from the right place. go back to the aerov4 site and start over.');
+            if (!urlToken) {
+                showError(
+                    'no verification token',
+                    'u didnt come from the right place. go back to the aerov4 site and click "start work.ink"',
+                    'missing verify param in url'
+                );
                 return;
             }
 
-            if (code.length !== 8 || !/^[A-Z0-9]+$/.test(code)) {
-                showError('invalid code', 'the code looks wrong. go back to the aerov4 site and try again.');
+            if (!verifyData) {
+                showError(
+                    'verification expired',
+                    'ur session expired or u cleared ur browser data. go back to the aerov4 site and start over.',
+                    'no verification data in localstorage'
+                );
+                return;
+            }
+
+            if (urlToken !== verifyData.token) {
+                showError(
+                    'token mismatch',
+                    'the verification token doesnt match. this looks like a bypass attempt. go back and do it properly.',
+                    'url token: ' + urlToken.substring(0, 10) + '... vs stored: ' + verifyData.token.substring(0, 10) + '...'
+                );
+                return;
+            }
+
+            if (!referrerValid) {
+                showError(
+                    'invalid referrer',
+                    'u didnt come from work.ink. complete the work.ink task to get redirected here properly.',
+                    'referrer: ' + (document.referrer || 'none')
+                );
+                return;
+            }
+
+            const code = verifyData.sessionCode;
+
+            if (!code || code.length !== 8 || !/^[A-Z0-9]+$/.test(code)) {
+                showError(
+                    'invalid code',
+                    'the session code looks wrong. go back to the aerov4 site and try again.',
+                    'code format invalid'
+                );
                 return;
             }
 
             if (isCodeUsed(code)) {
-                showError('code already used', 'u already saw this code. it can only be used once. go back and get a new one.');
+                showError(
+                    'code already used',
+                    'u already saw this code. it can only be used once. go back and get a new one.',
+                    'code was viewed before'
+                );
                 return;
             }
 
-            localStorage.removeItem('aerov4_pending_code');
+            localStorage.removeItem(VERIFICATION_KEY);
 
             showSuccess(code);
         };
